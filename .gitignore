@@ -1,0 +1,24 @@
+# .NET build output
+bin/
+obj/
+lib/
+
+# Native binaries (platform-specific, built locally)
+*.dylib
+*.so
+*.dll
+
+# Steam
+steam_appid.txt
+
+# macOS
+.DS_Store
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Claude
+.claude/
