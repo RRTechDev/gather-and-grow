@@ -32,6 +32,8 @@ public class MainMenu
         RetrySteam
     }
 
+    public bool SteamWasDisconnected { get; set; }
+
     public MenuAction Draw(bool steamOk)
     {
         Raylib.DrawRectangle(0, 0, GameConstants.WindowWidth, GameConstants.WindowHeight, new Color(20, 40, 20, 255));
@@ -85,6 +87,16 @@ public class MainMenu
                 StatusMessage = "";
                 return MenuAction.None;
             }
+        }
+        else if (SteamWasDisconnected)
+        {
+            string msg = "Steam was disconnected.";
+            int msgW = Raylib.MeasureText(msg, 20);
+            Raylib.DrawText(msg, (GameConstants.WindowWidth - msgW) / 2, 260, 20, Color.Red);
+
+            string hint = "Please restart the game.";
+            int hintW = Raylib.MeasureText(hint, 18);
+            Raylib.DrawText(hint, (GameConstants.WindowWidth - hintW) / 2, 295, 18, Color.Yellow);
         }
         else
         {

@@ -10,7 +10,9 @@ public class NetworkManager
 {
     private GameState _state;
     public bool SteamInitialized { get; private set; }
+    public bool SteamWasDisconnected { get; private set; }
     public string SteamError { get; private set; } = "";
+    public string LocalPlayerName { get; private set; } = "";
 
     // Direct P2P: track connected peers by SteamId
     private HashSet<ulong> _connectedPeers = new();
@@ -28,11 +30,19 @@ public class NetworkManager
     {
         try
         {
+            // Shut down any previous failed/partial init before retrying
+            if (SteamInitialized)
+            {
+                SteamClient.Shutdown();
+                SteamInitialized = false;
+            }
+
             Console.WriteLine("Attempting SteamClient.Init(480)...");
             SteamClient.Init(480, asyncCallbacks: true);
             SteamInitialized = true;
             _state.LocalSteamId = SteamClient.SteamId.Value;
-            Console.WriteLine($"Steam initialized! SteamId={_state.LocalSteamId}, Name={SteamClient.Name}");
+            LocalPlayerName = SteamClient.Name;
+            Console.WriteLine($"Steam initialized! SteamId={_state.LocalSteamId}, Name={LocalPlayerName}");
 
             // Register P2P session request callback
             SteamNetworking.OnP2PSessionRequest = OnP2PSessionRequest;
@@ -51,7 +61,14 @@ public class NetworkManager
     public void RunCallbacks()
     {
         if (!SteamInitialized) return;
-        SteamClient.RunCallbacks();
+        try
+        {
+            SteamClient.RunCallbacks();
+        }
+        catch (Exception)
+        {
+            HandleSteamDisconnect();
+        }
     }
 
     public void Shutdown()
@@ -78,7 +95,7 @@ public class NetworkManager
         _state.Phase = GamePhase.InLobby;
         _hostSteamId = _state.LocalSteamId;
         _nextColorIndex = 0;
-        AddPlayer(_state.LocalSteamId, SteamClient.Name, _nextColorIndex++);
+        AddPlayer(_state.LocalSteamId, LocalPlayerName, _nextColorIndex++);
         Console.WriteLine($"Hosting game. SteamId={_state.LocalSteamId}");
     }
 
@@ -90,7 +107,7 @@ public class NetworkManager
         _state.Phase = GamePhase.InLobby;
 
         // Send join request to host via P2P
-        string myName = SteamClient.Name;
+        string myName = LocalPlayerName;
         var data = PacketSerializer.WritePlayerJoined(_state.LocalSteamId, myName, 0);
         SteamNetworking.SendP2PPacket(hostSteamId, data, data.Length, 0, P2PSend.Reliable);
         Console.WriteLine($"Sent PlayerJoined to host {hostSteamId}");
@@ -114,13 +131,21 @@ public class NetworkManager
     {
         if (!SteamInitialized) return;
 
-        while (SteamNetworking.IsP2PPacketAvailable(0))
+        try
         {
-            var packet = SteamNetworking.ReadP2PPacket(0);
-            if (packet.HasValue)
+            while (SteamNetworking.IsP2PPacketAvailable(0))
             {
-                ProcessPacket(packet.Value.Data, packet.Value.SteamId);
+                var packet = SteamNetworking.ReadP2PPacket(0);
+                if (packet.HasValue)
+                {
+                    ProcessPacket(packet.Value.Data, packet.Value.SteamId);
+                }
             }
+        }
+        catch (Exception)
+        {
+            HandleSteamDisconnect();
+            return;
         }
 
         if (_state.IsHost && _state.Phase == GamePhase.Playing)
@@ -518,30 +543,55 @@ public class NetworkManager
 
     private void SendToAll(byte[] data)
     {
-        foreach (var peerId in _connectedPeers)
+        if (!SteamInitialized) return;
+        try
         {
-            if (peerId == _state.LocalSteamId) continue;
-            SteamNetworking.SendP2PPacket(peerId, data, data.Length, 0, P2PSend.Reliable);
+            foreach (var peerId in _connectedPeers)
+            {
+                if (peerId == _state.LocalSteamId) continue;
+                SteamNetworking.SendP2PPacket(peerId, data, data.Length, 0, P2PSend.Reliable);
+            }
         }
+        catch (Exception) { HandleSteamDisconnect(); }
     }
 
     private void SendToAllExcept(byte[] data, ulong exceptId)
     {
-        foreach (var peerId in _connectedPeers)
+        if (!SteamInitialized) return;
+        try
         {
-            if (peerId == _state.LocalSteamId || peerId == exceptId) continue;
-            SteamNetworking.SendP2PPacket(peerId, data, data.Length, 0, P2PSend.Reliable);
+            foreach (var peerId in _connectedPeers)
+            {
+                if (peerId == _state.LocalSteamId || peerId == exceptId) continue;
+                SteamNetworking.SendP2PPacket(peerId, data, data.Length, 0, P2PSend.Reliable);
+            }
         }
+        catch (Exception) { HandleSteamDisconnect(); }
     }
 
     private void SendTo(SteamId target, byte[] data)
     {
-        SteamNetworking.SendP2PPacket(target, data, data.Length, 0, P2PSend.Reliable);
+        if (!SteamInitialized) return;
+        try { SteamNetworking.SendP2PPacket(target, data, data.Length, 0, P2PSend.Reliable); }
+        catch (Exception) { HandleSteamDisconnect(); }
     }
 
     private void SendToHost(byte[] data, P2PSend sendType)
     {
-        SteamNetworking.SendP2PPacket(_hostSteamId, data, data.Length, 0, sendType);
+        if (!SteamInitialized) return;
+        try { SteamNetworking.SendP2PPacket(_hostSteamId, data, data.Length, 0, sendType); }
+        catch (Exception) { HandleSteamDisconnect(); }
+    }
+
+    private void HandleSteamDisconnect()
+    {
+        Console.WriteLine("Steam disconnected! Returning to main menu.");
+        SteamInitialized = false;
+        SteamWasDisconnected = true;
+        _connectedPeers.Clear();
+        _state.Players.Clear();
+        _state.Phase = GamePhase.MainMenu;
+        _state.IsHost = false;
     }
 
     // --- Helpers ---

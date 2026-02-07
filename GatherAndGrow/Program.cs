@@ -16,7 +16,7 @@ var upgradePanel = new UpgradePanel();
 var mainMenu = new MainMenu();
 
 // --- Init Steam ---
-bool steamOk = networkManager.Init();
+networkManager.Init();
 
 // --- Init Raylib ---
 Raylib.InitWindow(GameConstants.WindowWidth, GameConstants.WindowHeight, "Gather & Grow");
@@ -152,7 +152,8 @@ void UpdatePlaying(float dt)
 
 void DrawMenu()
 {
-    var action = mainMenu.Draw(steamOk);
+    mainMenu.SteamWasDisconnected = networkManager.SteamWasDisconnected;
+    var action = mainMenu.Draw(networkManager.SteamInitialized);
 
     switch (action)
     {
@@ -185,8 +186,8 @@ void DrawMenu()
             break;
 
         case MainMenu.MenuAction.RetrySteam:
-            steamOk = networkManager.Init();
-            if (!steamOk)
+            networkManager.Init();
+            if (!networkManager.SteamInitialized)
                 mainMenu.StatusMessage = "Still unable to connect to Steam.";
             else
                 mainMenu.StatusMessage = "";
