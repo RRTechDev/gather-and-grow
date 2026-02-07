@@ -183,6 +183,14 @@ void DrawMenu()
                 mainMenu.StatusMessage = "Invalid Steam ID";
             }
             break;
+
+        case MainMenu.MenuAction.RetrySteam:
+            steamOk = networkManager.Init();
+            if (!steamOk)
+                mainMenu.StatusMessage = "Still unable to connect to Steam.";
+            else
+                mainMenu.StatusMessage = "";
+            break;
     }
 }
 

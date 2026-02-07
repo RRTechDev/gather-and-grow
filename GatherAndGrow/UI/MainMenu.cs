@@ -28,7 +28,8 @@ public class MainMenu
         Host,
         Back,
         Start,
-        DirectConnect
+        DirectConnect,
+        RetrySteam
     }
 
     public MenuAction Draw(bool steamOk)
@@ -87,7 +88,12 @@ public class MainMenu
         }
         else
         {
-            Raylib.DrawText("Steam must be running to play.", centerX - 40, 280, 20, Color.Red);
+            string msg = "Steam must be running to play.";
+            int msgW = Raylib.MeasureText(msg, 20);
+            Raylib.DrawText(msg, (GameConstants.WindowWidth - msgW) / 2, 260, 20, Color.Red);
+
+            if (DrawButton("Retry Connection", centerX, 310, btnW, btnH))
+                return MenuAction.RetrySteam;
         }
 
         return MenuAction.None;
