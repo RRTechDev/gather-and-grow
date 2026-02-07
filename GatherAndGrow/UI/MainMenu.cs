@@ -29,10 +29,15 @@ public class MainMenu
         Back,
         Start,
         DirectConnect,
-        RetrySteam
+        RetrySteam,
+#if DEBUG
+        HostLocal,
+        JoinLocal,
+#endif
     }
 
     public bool SteamWasDisconnected { get; set; }
+    public string LocalSteamId { get; set; } = "";
 
     public MenuAction Draw(bool steamOk)
     {
@@ -83,7 +88,11 @@ public class MainMenu
             if (DrawButton("Join Game", centerX, 320, btnW, btnH))
             {
                 CurrentScreen = MenuScreen.JoinInput;
+#if DEBUG
+                JoinInput = LocalSteamId;
+#else
                 JoinInput = "";
+#endif
                 StatusMessage = "";
                 return MenuAction.None;
             }
@@ -107,6 +116,17 @@ public class MainMenu
             if (DrawButton("Retry Connection", centerX, 310, btnW, btnH))
                 return MenuAction.RetrySteam;
         }
+
+#if DEBUG
+        // Debug local TCP buttons — always visible in debug builds
+        Raylib.DrawText("-- Debug Local --", centerX + 30, 430, 16, Color.Yellow);
+
+        if (DrawButton("Host (Local)", centerX, 455, btnW, btnH))
+            return MenuAction.HostLocal;
+
+        if (DrawButton("Join (Local)", centerX, 520, btnW, btnH))
+            return MenuAction.JoinLocal;
+#endif
 
         return MenuAction.None;
     }

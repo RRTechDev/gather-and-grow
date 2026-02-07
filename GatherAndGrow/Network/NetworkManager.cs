@@ -21,6 +21,11 @@ public class NetworkManager
     private float _networkTickTimer;
     private int _nextColorIndex;
 
+#if DEBUG
+    private DebugTcpTransport? _debugTcp;
+    private bool _useDebugTcp;
+#endif
+
     public NetworkManager(GameState state)
     {
         _state = state;
@@ -58,9 +63,47 @@ public class NetworkManager
         }
     }
 
+#if DEBUG
+    public void InitDebugLocal(bool asHost)
+    {
+        _debugTcp?.Dispose();
+        _useDebugTcp = true;
+        _debugTcp = new DebugTcpTransport(asHost);
+
+        _state.LocalSteamId = asHost ? DebugTcpTransport.FakeHostId : DebugTcpTransport.FakeClientId;
+        LocalPlayerName = asHost ? "DebugHost" : "DebugClient";
+        SteamInitialized = true; // so existing guards don't short-circuit
+
+        if (asHost)
+        {
+            _debugTcp.StartHost();
+        }
+        else
+        {
+            _debugTcp.ConnectToHost();
+        }
+
+        Console.WriteLine($"[DebugTcp] InitDebugLocal asHost={asHost}, LocalId={_state.LocalSteamId}, Name={LocalPlayerName}");
+    }
+
+    public void DirectConnectLocal()
+    {
+        _hostSteamId = DebugTcpTransport.FakeHostId;
+        _state.IsHost = false;
+        _state.Phase = GamePhase.InLobby;
+
+        var data = PacketSerializer.WritePlayerJoined(_state.LocalSteamId, LocalPlayerName, 0);
+        _debugTcp!.Send(data);
+        Console.WriteLine("[DebugTcp] Sent PlayerJoined to host via TCP");
+    }
+#endif
+
     public void RunCallbacks()
     {
         if (!SteamInitialized) return;
+#if DEBUG
+        if (_useDebugTcp) return;
+#endif
         try
         {
             SteamClient.RunCallbacks();
@@ -73,6 +116,17 @@ public class NetworkManager
 
     public void Shutdown()
     {
+#if DEBUG
+        if (_useDebugTcp)
+        {
+            _debugTcp?.Dispose();
+            _debugTcp = null;
+            _useDebugTcp = false;
+            _connectedPeers.Clear();
+            SteamInitialized = false;
+            return;
+        }
+#endif
         if (SteamInitialized)
         {
             // Close all P2P sessions
@@ -130,6 +184,22 @@ public class NetworkManager
     public void Update(float dt)
     {
         if (!SteamInitialized) return;
+
+#if DEBUG
+        if (_useDebugTcp)
+        {
+            while (_debugTcp!.TryDequeue(out var senderId, out var data))
+            {
+                ProcessPacket(data, senderId);
+            }
+
+            if (_state.IsHost && _state.Phase == GamePhase.Playing)
+            {
+                HostTick(dt);
+            }
+            return;
+        }
+#endif
 
         try
         {
@@ -282,6 +352,12 @@ public class NetworkManager
     {
         if (_state.IsHost) return;
         PacketSerializer.ReadWorldState(r, _state);
+
+        // Host only sends WorldState after starting the game, so transition to Playing
+        if (_state.Phase == GamePhase.InLobby)
+        {
+            _state.Phase = GamePhase.Playing;
+        }
     }
 
     private void HandleToolUpgradeRequest(BinaryReader r)
@@ -544,6 +620,9 @@ public class NetworkManager
     private void SendToAll(byte[] data)
     {
         if (!SteamInitialized) return;
+#if DEBUG
+        if (_useDebugTcp) { _debugTcp!.Send(data); return; }
+#endif
         try
         {
             foreach (var peerId in _connectedPeers)
@@ -558,6 +637,12 @@ public class NetworkManager
     private void SendToAllExcept(byte[] data, ulong exceptId)
     {
         if (!SteamInitialized) return;
+#if DEBUG
+        // In debug TCP mode there's only one peer, so SendToAllExcept is a no-op
+        // when exceptId is the only peer (the new joiner). But if we need to send
+        // to the client (e.g. notifying about existing players), use Send.
+        if (_useDebugTcp) return;
+#endif
         try
         {
             foreach (var peerId in _connectedPeers)
@@ -572,6 +657,9 @@ public class NetworkManager
     private void SendTo(SteamId target, byte[] data)
     {
         if (!SteamInitialized) return;
+#if DEBUG
+        if (_useDebugTcp) { _debugTcp!.Send(data); return; }
+#endif
         try { SteamNetworking.SendP2PPacket(target, data, data.Length, 0, P2PSend.Reliable); }
         catch (Exception) { HandleSteamDisconnect(); }
     }
@@ -579,6 +667,9 @@ public class NetworkManager
     private void SendToHost(byte[] data, P2PSend sendType)
     {
         if (!SteamInitialized) return;
+#if DEBUG
+        if (_useDebugTcp) { _debugTcp!.Send(data); return; }
+#endif
         try { SteamNetworking.SendP2PPacket(_hostSteamId, data, data.Length, 0, sendType); }
         catch (Exception) { HandleSteamDisconnect(); }
     }

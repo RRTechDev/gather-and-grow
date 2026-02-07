@@ -153,6 +153,7 @@ void UpdatePlaying(float dt)
 void DrawMenu()
 {
     mainMenu.SteamWasDisconnected = networkManager.SteamWasDisconnected;
+    mainMenu.LocalSteamId = gameState.LocalSteamId.ToString();
     var action = mainMenu.Draw(networkManager.SteamInitialized);
 
     switch (action)
@@ -192,6 +193,24 @@ void DrawMenu()
             else
                 mainMenu.StatusMessage = "";
             break;
+
+#if DEBUG
+        case MainMenu.MenuAction.HostLocal:
+            networkManager.Shutdown(); // shut down Steam if it was running
+            networkManager.InitDebugLocal(true);
+            networkManager.HostGame();
+            mainMenu.CurrentScreen = MainMenu.MenuScreen.HostWaiting;
+            mainMenu.HostSteamId = "(Local Debug)";
+            mainMenu.StatusMessage = "Hosting on localhost:7777";
+            break;
+
+        case MainMenu.MenuAction.JoinLocal:
+            networkManager.Shutdown();
+            networkManager.InitDebugLocal(false);
+            networkManager.DirectConnectLocal();
+            mainMenu.StatusMessage = "Connecting to localhost:7777...";
+            break;
+#endif
     }
 }
 
