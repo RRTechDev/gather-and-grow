@@ -313,7 +313,7 @@ public class NetworkManager
         {
             if (_state.Players.TryGetValue(steamId, out var player))
             {
-                player.Position = position;
+                player.TargetPosition = position;
                 if (player.GatheringNodeId.HasValue)
                 {
                     player.GatheringNodeId = null;
@@ -325,7 +325,7 @@ public class NetworkManager
         {
             if (_state.Players.TryGetValue(steamId, out var player) && steamId != _state.LocalSteamId)
             {
-                player.Position = position;
+                player.TargetPosition = position;
             }
         }
     }
@@ -604,7 +604,9 @@ public class NetworkManager
 
         for (int i = 0; i < playerList.Count; i++)
         {
-            playerList[i].Position = spawnPositions[i % spawnPositions.Length];
+            var pos = spawnPositions[i % spawnPositions.Length];
+            playerList[i].Position = pos;
+            playerList[i].TargetPosition = pos;
         }
 
         _state.Phase = GamePhase.Playing;
@@ -692,12 +694,14 @@ public class NetworkManager
         if (_state.Players.ContainsKey(steamId)) return;
 
         var color = Player.PlayerColors[colorIndex % Player.PlayerColors.Length];
+        var spawnPos = new Vector2(GameConstants.MapWidth / 2f, GameConstants.MapHeight / 2f);
         _state.Players[steamId] = new Player
         {
             SteamId = steamId,
             Name = name,
             Color = color,
-            Position = new Vector2(GameConstants.MapWidth / 2f, GameConstants.MapHeight / 2f)
+            Position = spawnPos,
+            TargetPosition = spawnPos
         };
         Console.WriteLine($"Player added: {name} ({steamId}) color={colorIndex}");
     }

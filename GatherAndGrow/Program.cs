@@ -114,6 +114,7 @@ void UpdatePlaying(float dt)
         );
 
         localPlayer.Position = newPos;
+        localPlayer.TargetPosition = newPos;
 
         // Cancel gathering on move
         if (localPlayer.GatheringNodeId.HasValue)
@@ -140,6 +141,16 @@ void UpdatePlaying(float dt)
     if (Raylib.IsKeyPressed(KeyboardKey.Tab))
     {
         upgradePanel.IsOpen = !upgradePanel.IsOpen;
+    }
+
+    // Interpolate remote players toward their network target position
+    float lerpFactor = MathF.Min(1.0f, dt * GameConstants.InterpolationSpeed);
+    foreach (var player in gameState.Players.Values)
+    {
+        if (player.SteamId != gameState.LocalSteamId)
+        {
+            player.Position = Vector2.Lerp(player.Position, player.TargetPosition, lerpFactor);
+        }
     }
 
     // Update camera

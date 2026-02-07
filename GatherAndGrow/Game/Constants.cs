@@ -31,8 +31,9 @@ public static class GameConstants
     public const float NodeRadius = 20f;
 
     // Network
-    public const float NetworkTickRate = 20f;
+    public const float NetworkTickRate = 60f;
     public const float NetworkTickInterval = 1f / NetworkTickRate;
+    public const float InterpolationSpeed = 25f;
 
     // Camera
     public const float CameraLerp = 0.1f;

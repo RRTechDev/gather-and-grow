@@ -228,7 +228,8 @@ public static class PacketSerializer
 
             seen.Add(steamId);
 
-            if (!state.Players.TryGetValue(steamId, out var player))
+            bool isNew = !state.Players.TryGetValue(steamId, out var player);
+            if (isNew)
             {
                 player = new Player { SteamId = steamId };
                 state.Players[steamId] = player;
@@ -238,7 +239,17 @@ public static class PacketSerializer
             // Only overwrite position for remote players (local player uses prediction)
             if (steamId != state.LocalSteamId)
             {
-                player.Position = new Vector2(px, py);
+                var pos = new Vector2(px, py);
+                player.TargetPosition = pos;
+                // Snap position on first update to avoid lerping from origin
+                if (isNew) player.Position = pos;
+            }
+            else if (isNew)
+            {
+                // Local player's first spawn — accept server position
+                var pos = new Vector2(px, py);
+                player.Position = pos;
+                player.TargetPosition = pos;
             }
             player.Color = new Raylib_cs.Color(cr, cg, cb, ca);
             player.Inventory[ResourceType.Wood] = wood;

@@ -15,6 +15,7 @@ public class Player
     public ulong SteamId { get; set; }
     public string Name { get; set; } = "";
     public Vector2 Position { get; set; }
+    public Vector2 TargetPosition { get; set; }
     public Raylib_cs.Color Color { get; set; }
     public Dictionary<ResourceType, int> Inventory { get; set; } = new()
     {
